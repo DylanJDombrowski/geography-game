@@ -50,8 +50,8 @@ const WorldMap: React.FC<WorldMapProps> = ({
       return "#ffeb3b"; // Yellow to show the correct answer
     }
 
-    // Default country color
-    return "#f5f5f5";
+    // Default country color - make it more visible with a slightly darker color
+    return "#f0f0f0";
   };
 
   // Function to get the stroke (border) color
@@ -64,6 +64,17 @@ const WorldMap: React.FC<WorldMapProps> = ({
       return "#ff9800"; // Orange border for correct answer highlight
     }
     return "#ffffff";
+  };
+
+  // Function to get stroke width for better visibility
+  const getStrokeWidth = (country: CountryFeature): number => {
+    if (hoveredCountry?.properties.ISO_A2 === country.properties.ISO_A2) {
+      return 2;
+    }
+    if (selectedCountry?.properties.ISO_A2 === country.properties.ISO_A2) {
+      return 2;
+    }
+    return 0.5;
   };
 
   return (
@@ -82,7 +93,12 @@ const WorldMap: React.FC<WorldMapProps> = ({
           const pathData = featureToPath(country, projection);
 
           // Skip countries that don't have valid path data
-          if (!pathData) return null;
+          if (!pathData) {
+            console.warn(
+              `No path data for country: ${country.properties.NAME}`
+            );
+            return null;
+          }
 
           return (
             <path
@@ -90,7 +106,7 @@ const WorldMap: React.FC<WorldMapProps> = ({
               d={pathData}
               fill={getCountryColor(country)}
               stroke={getStrokeColor(country)}
-              strokeWidth="1"
+              strokeWidth={getStrokeWidth(country)}
               className="cursor-pointer transition-all duration-300 hover:brightness-110"
               onClick={() => onCountryClick(country)}
               onMouseEnter={() => onCountryHover(country)}
@@ -106,46 +122,80 @@ const WorldMap: React.FC<WorldMapProps> = ({
             <rect
               x="20"
               y="20"
-              width={hoveredCountry.properties.NAME.length * 8 + 20}
-              height="30"
-              fill="rgba(255, 255, 255, 0.9)"
-              stroke="#ccc"
+              width={Math.max(
+                hoveredCountry.properties.NAME.length * 8 + 20,
+                120
+              )}
+              height="35"
+              fill="rgba(255, 255, 255, 0.95)"
+              stroke="#ddd"
               strokeWidth="1"
-              rx="4"
+              rx="6"
             />
-            <text x="30" y="40" className="text-sm font-semibold fill-gray-700">
+            <text
+              x="30"
+              y="42"
+              className="text-sm font-semibold fill-gray-700"
+              style={{ fontSize: "14px" }}
+            >
               {hoveredCountry.properties.NAME}
             </text>
           </g>
         )}
 
-        {/* Legend */}
-        <g transform="translate(20, 520)">
+        {/* Country Count Display */}
+        <g transform="translate(20, 60)">
           <rect
-            width="200"
-            height="60"
+            width="180"
+            height="25"
             fill="rgba(255, 255, 255, 0.9)"
-            stroke="#ccc"
+            stroke="#ddd"
             strokeWidth="1"
             rx="4"
+          />
+          <text x="10" y="18" className="text-xs font-medium fill-gray-600">
+            {countries.length} countries loaded
+          </text>
+        </g>
+
+        {/* Legend */}
+        <g transform="translate(20, 500)">
+          <rect
+            width="220"
+            height="80"
+            fill="rgba(255, 255, 255, 0.95)"
+            stroke="#ddd"
+            strokeWidth="1"
+            rx="6"
           />
           <text x="10" y="20" className="text-xs font-semibold fill-gray-700">
             Legend:
           </text>
-          <circle cx="20" cy="35" r="5" fill="#e3f2fd" />
+          <circle
+            cx="20"
+            cy="35"
+            r="5"
+            fill="#f0f0f0"
+            stroke="#fff"
+            strokeWidth="1"
+          />
           <text x="35" y="40" className="text-xs fill-gray-600">
+            Countries
+          </text>
+          <circle cx="20" cy="50" r="5" fill="#e3f2fd" />
+          <text x="35" y="55" className="text-xs fill-gray-600">
             Hovered
           </text>
-          <circle cx="20" cy="50" r="5" fill="#4caf50" />
-          <text x="35" y="55" className="text-xs fill-gray-600">
+          <circle cx="20" cy="65" r="5" fill="#4caf50" />
+          <text x="35" y="70" className="text-xs fill-gray-600">
             Correct
           </text>
-          <circle cx="100" cy="35" r="5" fill="#f44336" />
-          <text x="115" y="40" className="text-xs fill-gray-600">
+          <circle cx="120" cy="35" r="5" fill="#f44336" />
+          <text x="135" y="40" className="text-xs fill-gray-600">
             Incorrect
           </text>
-          <circle cx="100" cy="50" r="5" fill="#ffeb3b" />
-          <text x="115" y="55" className="text-xs fill-gray-600">
+          <circle cx="120" cy="50" r="5" fill="#ffeb3b" />
+          <text x="135" y="55" className="text-xs fill-gray-600">
             Answer
           </text>
         </g>

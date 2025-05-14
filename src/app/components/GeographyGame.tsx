@@ -1,7 +1,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { MapData } from "@/app/lib/types";
 import { useGeographyGame } from "@/app/hooks/useGeographyGame";
-import { filterCountriesByDifficulty } from "@/app/lib/mapUtils";
+import {
+  filterCountriesByDifficulty,
+  prepareCountryData,
+  isValidGeoJsonData,
+} from "@/app/lib/mapUtils";
 import WorldMap from "./WorldMap";
 import GameControls from "./GameControls";
 
@@ -13,6 +17,12 @@ const GeographyGame: React.FC = () => {
   const [difficulty, setDifficulty] = useState<"easy" | "medium" | "hard">(
     "easy"
   );
+  const [debugInfo, setDebugInfo] = useState<{
+    totalFeatures: number;
+    validFeatures: number;
+    polygonCount: number;
+    multiPolygonCount: number;
+  } | null>(null);
 
   // Filter countries based on difficulty level
   // useMemo ensures this only recalculates when mapData or difficulty changes
@@ -41,28 +51,62 @@ const GeographyGame: React.FC = () => {
           );
         }
 
-        const data: MapData = await response.json();
+        const rawData: unknown = await response.json();
 
-        // Validate that we have the expected data structure
-        if (!data.features || !Array.isArray(data.features)) {
-          throw new Error("Invalid map data format");
+        // Type-safe validation of the loaded data
+        if (!isValidGeoJsonData(rawData)) {
+          throw new Error(
+            "Invalid GeoJSON data structure - missing required properties"
+          );
         }
 
-        // Filter out any countries without proper names or geometry
-        const validFeatures = data.features.filter(
-          (feature) =>
-            feature.properties?.NAME &&
-            feature.properties?.ISO_A2 &&
-            feature.geometry?.type === "Polygon" &&
-            Array.isArray(feature.geometry.coordinates)
-        );
+        // Use the prepareCountryData function to clean and validate
+        const validFeatures = prepareCountryData(rawData);
 
-        setMapData({
-          ...data,
-          features: validFeatures,
+        // Create debug information to help understand what's loaded
+        const polygonCount = validFeatures.filter(
+          (f) => f.geometry.type === "Polygon"
+        ).length;
+        const multiPolygonCount = validFeatures.filter(
+          (f) => f.geometry.type === "MultiPolygon"
+        ).length;
+
+        setDebugInfo({
+          totalFeatures: rawData.features.length,
+          validFeatures: validFeatures.length,
+          polygonCount,
+          multiPolygonCount,
         });
 
-        console.log(`Loaded ${validFeatures.length} countries successfully`);
+        const processedData: MapData = {
+          type: "FeatureCollection",
+          features: validFeatures,
+        };
+
+        setMapData(processedData);
+
+        console.log(`✅ Successfully loaded ${validFeatures.length} countries`);
+        console.log(`   - ${polygonCount} Polygons`);
+        console.log(`   - ${multiPolygonCount} MultiPolygons`);
+
+        // Log some example countries to verify data structure
+        console.log(
+          "Sample countries:",
+          validFeatures.slice(0, 3).map((f) => ({
+            name: f.properties.NAME,
+            iso: f.properties.ISO_A2,
+            type: f.geometry.type,
+            population: f.properties.POP_EST,
+          }))
+        );
+
+        // Log excluded features for debugging
+        const excludedCount = rawData.features.length - validFeatures.length;
+        if (excludedCount > 0) {
+          console.log(
+            `⚠️ Excluded ${excludedCount} features during validation`
+          );
+        }
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Unknown error occurred";
@@ -113,7 +157,7 @@ const GeographyGame: React.FC = () => {
               Please make sure you have placed the Natural Earth data file at:
             </p>
             <code className="bg-red-100 px-2 py-1 rounded">
-              public/data/ne_10m_admin_0_countries.json
+              public/data/ne_10m_admin_0_countries.geojson
             </code>
           </div>
           <button
@@ -130,6 +174,27 @@ const GeographyGame: React.FC = () => {
   // Main game interface
   return (
     <div className="w-full max-w-7xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+      {/* Debug Information Panel (only show during development) */}
+      {debugInfo && process.env.NODE_ENV === "development" && (
+        <div className="mb-6 p-4 bg-gray-100 rounded-lg">
+          <details className="text-sm">
+            <summary className="font-semibold cursor-pointer">
+              Debug Info (Click to expand)
+            </summary>
+            <div className="mt-2 space-y-1">
+              <p>📊 Total features in file: {debugInfo.totalFeatures}</p>
+              <p>✅ Valid countries loaded: {debugInfo.validFeatures}</p>
+              <p>🔷 Polygon countries: {debugInfo.polygonCount}</p>
+              <p>🔸 MultiPolygon countries: {debugInfo.multiPolygonCount}</p>
+              <p>
+                🎮 Available for {difficulty} mode: {availableCountries.length}
+              </p>
+              <p>🗺️ Countries visible on map: {availableCountries.length}</p>
+            </div>
+          </details>
+        </div>
+      )}
+
       {/* Game Controls Section */}
       <GameControls
         score={state.score}

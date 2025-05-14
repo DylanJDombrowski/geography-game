@@ -1,6 +1,6 @@
 import { geoMercator, geoPath, GeoProjection } from "d3-geo";
 import { CountryFeature, DIFFICULTY_CONFIGS } from "./types";
-import { Feature, Geometry } from "geojson";
+import { Feature, Geometry, FeatureCollection } from "geojson";
 
 /**
  * Map Utility Functions
@@ -9,6 +9,31 @@ import { Feature, Geometry } from "geojson";
  * It converts real-world coordinates into screen coordinates and handles
  * different map projections for optimal display.
  */
+
+// Interface for raw Natural Earth data before processing
+// We define this directly without extending GeoJsonProperties to avoid TS issues
+interface RawCountryProperties {
+  NAME?: string;
+  ADMIN?: string;
+  NAME_EN?: string;
+  NAME_LONG?: string;
+  ISO_A2?: string;
+  ISO_A3?: string;
+  ISO?: string;
+  POP_EST?: number | string;
+  CONTINENT?: string;
+  SUBREGION?: string;
+  REGION_UN?: string;
+  REGION_WB?: string;
+  TYPE?: string;
+  // Allow any additional properties that Natural Earth might include
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+// Type aliases instead of empty interfaces to avoid linting issues
+type RawCountryFeature = Feature<Geometry, RawCountryProperties>;
+type RawGeoJsonData = FeatureCollection<Geometry, RawCountryProperties>;
 
 // Create a Mercator projection optimized for our world map display
 export const createProjection = (
@@ -153,47 +178,105 @@ const calculatePolygonArea = (coordinates: number[][]): number => {
 
 // Validate that a feature has the required properties for our game
 export const validateCountryFeature = (
-  feature: any
-): feature is CountryFeature => {
+  feature: RawCountryFeature
+): feature is RawCountryFeature => {
   return (
     feature &&
     feature.type === "Feature" &&
     feature.properties &&
-    typeof feature.properties.NAME === "string" &&
-    typeof feature.properties.ISO_A2 === "string" &&
+    (typeof feature.properties.NAME === "string" ||
+      typeof feature.properties.ADMIN === "string") &&
+    (typeof feature.properties.ISO_A2 === "string" ||
+      typeof feature.properties.ISO === "string") &&
     feature.geometry &&
     (feature.geometry.type === "Polygon" ||
       feature.geometry.type === "MultiPolygon")
   );
 };
 
+// Helper function to safely convert population estimate to number
+const parsePopulation = (pop: string | number | undefined): number => {
+  if (typeof pop === "number") return pop;
+  if (typeof pop === "string") {
+    const parsed = parseFloat(pop);
+    return isNaN(parsed) ? 0 : parsed;
+  }
+  return 0;
+};
+
+// Helper function to get best available name
+const getBestName = (props: RawCountryProperties): string => {
+  return props.NAME || props.ADMIN || props.NAME_EN || "Unknown";
+};
+
+// Helper function to get best available ISO code
+const getBestIsoCode = (props: RawCountryProperties): string => {
+  return props.ISO_A2 || props.ISO || "";
+};
+
 // Clean and prepare country data after loading
-export const prepareCountryData = (rawData: any): CountryFeature[] => {
+export const prepareCountryData = (
+  rawData: RawGeoJsonData
+): CountryFeature[] => {
   if (!rawData.features || !Array.isArray(rawData.features)) {
     throw new Error("Invalid GeoJSON data structure");
   }
 
   return rawData.features
     .filter(validateCountryFeature)
-    .map((feature: CountryFeature) => ({
-      ...feature,
-      // Ensure all required properties exist with fallbacks
-      properties: {
-        ...feature.properties,
-        NAME: feature.properties.NAME || feature.properties.ADMIN || "Unknown",
-        NAME_LONG:
-          feature.properties.NAME_LONG ||
-          feature.properties.NAME ||
-          feature.properties.ADMIN,
-        POP_EST: feature.properties.POP_EST || 0,
-        CONTINENT: feature.properties.CONTINENT || "Unknown",
-        SUBREGION: feature.properties.SUBREGION || "",
-        REGION_UN: feature.properties.REGION_UN || "",
-        REGION_WB: feature.properties.REGION_WB || "",
-      },
-    }))
-    .sort(
-      (a: { properties: { NAME: string } }, b: { properties: { NAME: any } }) =>
-        a.properties.NAME.localeCompare(b.properties.NAME)
+    .map((feature: RawCountryFeature): CountryFeature => {
+      // Clean up properties with better fallbacks
+      const props = feature.properties;
+      const name = getBestName(props);
+      const isoA2 = getBestIsoCode(props);
+
+      const cleanedProperties = {
+        NAME: name,
+        ADMIN: props.ADMIN || name,
+        NAME_LONG: props.NAME_LONG || name,
+        POP_EST: parsePopulation(props.POP_EST),
+        CONTINENT: props.CONTINENT || props.REGION_UN || "Unknown",
+        SUBREGION: props.SUBREGION || props.REGION_WB || "",
+        REGION_UN: props.REGION_UN || "",
+        REGION_WB: props.REGION_WB || "",
+        ISO_A2: isoA2,
+        ISO_A3: props.ISO_A3 || "",
+      };
+
+      return {
+        type: feature.type,
+        geometry: feature.geometry,
+        properties: cleanedProperties,
+      } as CountryFeature;
+    })
+    .filter((feature: CountryFeature): boolean => {
+      // Additional filtering to ensure we have essential data
+      return (
+        typeof feature.properties.NAME === "string" &&
+        feature.properties.NAME !== "Unknown" &&
+        typeof feature.properties.ISO_A2 === "string" &&
+        feature.properties.ISO_A2 !== "-99"
+      ); // Natural Earth uses -99 for unknown
+    })
+    .sort((a: CountryFeature, b: CountryFeature): number =>
+      a.properties.NAME.localeCompare(b.properties.NAME)
     );
 };
+
+// Type guard to check if loaded data matches our expected structure
+export const isValidGeoJsonData = (data: unknown): data is RawGeoJsonData => {
+  if (typeof data !== "object" || data === null) {
+    return false;
+  }
+
+  const obj = data as Record<string, unknown>;
+
+  return (
+    obj.type === "FeatureCollection" &&
+    "features" in obj &&
+    Array.isArray(obj.features)
+  );
+};
+
+// Export types for use in other files
+export type { RawGeoJsonData, RawCountryFeature, RawCountryProperties };

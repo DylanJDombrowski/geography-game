@@ -78,6 +78,7 @@ export const createProjectionByType = (
 
     default:
       // Default to Mercator for web maps
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { geoMercator } = require("d3-geo");
       return geoMercator()
         .scale(scale)
@@ -111,6 +112,7 @@ export const createRegionalProjection = (
     projection = geoStereographic();
   } else {
     // For most regions, Mercator works well
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { geoMercator } = require("d3-geo");
     projection = geoMercator();
   }

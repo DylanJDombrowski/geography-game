@@ -162,10 +162,10 @@ const GameControls: React.FC<GameControlsProps> = ({
           <div className="text-gray-600 space-y-2 text-sm">
             <p>
               🎯 Select your difficulty level to determine which countries
-              you'll be asked about
+              you&apos;ll be asked about
             </p>
             <p>
-              📍 When the game starts, you'll see a country name and some
+              📍 When the game starts, you&apos;ll see a country name and some
               helpful information
             </p>
             <p>🔍 Hover over countries on the map to see their names</p>
