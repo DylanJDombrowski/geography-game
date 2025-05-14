@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { MapData, CountryFeature } from "@/app/lib/types";
+import { MapData } from "@/app/lib/types";
 import { useGeographyGame } from "@/app/hooks/useGeographyGame";
 import { filterCountriesByDifficulty } from "@/app/lib/mapUtils";
 import WorldMap from "./WorldMap";
@@ -171,8 +171,8 @@ const GeographyGame: React.FC = () => {
               ensuring accurate country shapes and borders.
             </p>
             <p>
-              The map projection preserves the familiar look you'd see on most
-              world maps, making it easier to recognize countries.
+              The map projection preserves the familiar look you&apos;d see on
+              most world maps, making it easier to recognize countries.
             </p>
             <p>
               Challenge yourself by progressing through difficulty levels -
@@ -196,8 +196,8 @@ const GeographyGame: React.FC = () => {
               countries tend to have more people.
             </p>
             <p>
-              Don't rush! Hover over countries to see their names and build your
-              mental map of the world.
+              Don&apos;t rush! Hover over countries to see their names and build
+              your mental map of the world.
             </p>
             <p>
               Try playing on different difficulty levels to reinforce your
